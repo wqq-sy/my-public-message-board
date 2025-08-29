@@ -1,0 +1,276 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公共留言墙</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 25px;
+            background: #f8f9fa;
+            padding: 5px;
+            border-radius: 50px;
+        }
+        .nav-btn {
+            padding: 12px 25px;
+            border: none;
+            background: none;
+            color: #6c757d;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .nav-btn.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        .view {
+            display: none;
+        }
+        .view.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            resize: vertical;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: block;
+            margin: 0 auto;
+            transition: transform 0.2s;
+        }
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+        .message {
+            background: white;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid #667eea;
+        }
+        .message-content {
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+        .message-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💬 公共留言墙</h1>
+        <div id="errorBox" class="error"></div>
+        
+        <div class="nav-tabs">
+            <button class="nav-btn active" onclick="showView('formView')">写留言</button>
+            <button class="nav-btn" onclick="showView('listView')">看留言</button>
+        </div>
+        
+        <div id="formView" class="view active">
+            <input type="text" id="authorInput" placeholder="你的名字（可选）">
+            <textarea id="messageInput" placeholder="有什么想对大家说的？"></textarea>
+            <button class="submit-btn" onclick="addMessage()" id="submitBtn">发布留言</button>
+        </div>
+        
+        <div id="listView" class="view">
+            <div id="messageList">
+                <div class="loading">正在加载留言...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入 Supabase 客户端库 -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // ！！！重要：替换成你自己的 Supabase 项目信息 ！！！
+        const SUPABASE_URL = 'https://yvowxxroytuxxuhstcts.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2b3d4eHJveXR1eHh1aHN0Y3RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MDU2MTAsImV4cCI6MjA3MjA4MTYxMH0.Wy9QCDNeQyAXy6Ogt2tMzrmbIeQCPF6MTEjTlgvJSrE';
+
+        // 初始化 Supabase 客户端
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // 显示错误信息
+        function showError(message) {
+            const errorBox = document.getElementById('errorBox');
+            errorBox.textContent = message;
+            errorBox.style.display = 'block';
+            setTimeout(() => { errorBox.style.display = 'none'; }, 5000);
+        }
+
+        // 显示不同的视图
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            event.target.classList.add('active');
+            
+            if (viewId === 'listView') {
+                loadMessages();
+            }
+        }
+
+        // 添加新留言
+        async function addMessage() {
+            const authorInput = document.getElementById('authorInput');
+            const messageInput = document.getElementById('messageInput');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            const author = authorInput.value.trim() || '匿名网友';
+            const content = messageInput.value.trim();
+            
+            if (!content) {
+                showError('写点内容再发布吧～');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = '发布中...';
+            
+            try {
+                // 插入数据到 Supabase
+                const { data, error } = await supabase
+                    .from('messages')
+                    .insert([{ author, content }])
+                    .select();
+                
+                if (error) throw error;
+                
+                // 清空输入框
+                authorInput.value = '';
+                messageInput.value = '';
+                
+                alert('留言成功！👍');
+                showView('listView');
+                
+            } catch (error) {
+                console.error('Error adding message:', error);
+                showError('发布失败，请稍后重试: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '发布留言';
+            }
+        }
+
+        // 加载所有留言
+        async function loadMessages() {
+            const messageList = document.getElementById('messageList');
+            messageList.innerHTML = '<div class="loading">正在加载留言...</div>';
+            
+            try {
+                // 从 Supabase 获取数据
+                const { data: messages, error } = await supabase
+                    .from('messages')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) throw error;
+                
+                messageList.innerHTML = '';
+                
+                if (messages.length === 0) {
+                    messageList.innerHTML = '<div class="loading">还没有留言，快来第一条吧！</div>';
+                    return;
+                }
+                
+                messages.forEach(message => {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = 'message';
+                    messageElement.innerHTML = `
+                        <div class="message-content">${message.content}</div>
+                        <div class="message-meta">
+                            <span>👤 ${message.author}</span>
+                            <span>📅 ${new Date(message.created_at).toLocaleString('zh-CN')}</span>
+                        </div>
+                    `;
+                    messageList.appendChild(messageElement);
+                });
+                
+            } catch (error) {
+                console.error('Error loading messages:', error);
+                messageList.innerHTML = '<div class="loading">加载失败，请刷新重试</div>';
+            }
+        }
+
+        // 页面加载时初始化
+        window.onload = function() {
+            showView('formView');
+        };
+    </script>
+</body>
+</html>
